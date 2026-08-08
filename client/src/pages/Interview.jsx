@@ -1,22 +1,120 @@
+
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { submitAnswer } from "../services/api";
 import "./Interview.css";
 
 function Interview() {
+  const navigate = useNavigate();
+
   const [answer, setAnswer] = useState("");
   const [submitted, setSubmitted] = useState(false);
+  const [interviewComplete, setInterviewComplete] = useState(false);
 
-  const handleSubmit = () => {
-    if (!answer.trim()) return;
+  const [questionNumber, setQuestionNumber] = useState(1);
 
-    setSubmitted(true);
-    setAnswer("");
+  const [currentQuestion, setCurrentQuestion] = useState(
+    "Tell me about a project where something went wrong and how you fixed it."
+  );
+
+  const [agentDecision, setAgentDecision] = useState(
+    "→ Ready to evaluate your answer"
+  );
+
+  const [evaluation, setEvaluation] = useState(null);
+
+  // Store every question + answer + AI evaluation
+  const [allResults, setAllResults] = useState([]);
+
+  const handleSubmit = async () => {
+    if (!answer.trim() || submitted || interviewComplete) return;
+
+    const currentAnswer = answer.trim();
+
+    try {
+      setSubmitted(true);
+
+      const result = await submitAnswer(
+        currentQuestion,
+        currentAnswer
+      );
+
+      console.log("API Response:", result);
+
+      // Save current evaluation
+      if (result.evaluation) {
+        setEvaluation(result.evaluation);
+
+        const questionResult = {
+          questionNumber,
+          question: currentQuestion,
+          answer: currentAnswer,
+          evaluation: result.evaluation,
+        };
+
+        setAllResults((previous) => [
+          ...previous,
+          questionResult,
+        ]);
+      }
+
+      // Update agent decision
+      if (result.action) {
+        if (result.action === "DEEPEN") {
+          setAgentDecision("→ Explore technical depth");
+        } else if (result.action === "CLARIFY") {
+          setAgentDecision("→ Ask for clarification");
+        } else if (result.action === "MOVE_ON") {
+          setAgentDecision("→ Move to next topic");
+        } else {
+          setAgentDecision(`→ ${result.action}`);
+        }
+      }
+
+      // Question 10 = interview finished
+      if (questionNumber === 10) {
+        setInterviewComplete(true);
+        setAgentDecision("→ Interview completed");
+        setAnswer("");
+        return;
+      }
+
+      // Move to next question
+      if (questionNumber < 10 && result.nextQuestion) {
+        setCurrentQuestion(result.nextQuestion);
+        setQuestionNumber((previous) => previous + 1);
+      }
+
+      setAnswer("");
+
+    } catch (error) {
+      console.error("Error submitting answer:", error);
+    } finally {
+      setSubmitted(false);
+    }
+  };
+
+  const communicationScore =
+    evaluation?.communication ?? 0;
+
+  const problemSolvingScore =
+    evaluation?.problemSolving ?? 0;
+
+  const technicalDepthScore =
+    evaluation?.technicalDepth ?? 0;
+
+  const openReport = () => {
+    navigate("/report", {
+      state: {
+        results: allResults,
+      },
+    });
   };
 
   return (
-    <main className="interview-page">
+    <main>
 
       {/* TOP BAR */}
-
       <header className="interview-topbar">
 
         <div className="interview-brand">
@@ -25,17 +123,19 @@ function Interview() {
 
         <div className="interview-progress">
           <span>INTERVIEW</span>
-          <strong>04</strong>
+
+          <strong>
+            {String(questionNumber).padStart(2, "0")}
+          </strong>
+
           <span>/ 10</span>
         </div>
 
       </header>
 
+
       {/* MAIN INTERVIEW */}
-
       <section className="interview-layout">
-
-        {/* LEFT */}
 
         <div className="interviewer-panel">
 
@@ -44,104 +144,139 @@ function Interview() {
             AI INTERVIEWER · LIVE
           </div>
 
+
           <div className="question-container">
 
             <span className="question-number">
-              QUESTION 04
+              QUESTION {String(questionNumber).padStart(2, "0")}
             </span>
 
             <h1>
-              Tell me about a project where
-              something went wrong and how
-              you fixed it.
+              {currentQuestion}
             </h1>
 
             <p>
-              Take your time. I'm interested in your
-              reasoning, not just the final result.
+              {interviewComplete
+                ? "You have completed all 10 interview questions."
+                : "Take your time. I'm interested in your reasoning, not just the final result."}
             </p>
 
           </div>
+
 
           <div className="listening-state">
 
             <div className="pulse"></div>
 
             <div>
+
               <strong>
-                {submitted ? "Processing answer..." : "Listening"}
+                {submitted
+                  ? "Analyzing your answer..."
+                  : interviewComplete
+                    ? "Interview completed"
+                    : "Ready for your answer"}
               </strong>
 
               <span>
                 {submitted
-                  ? "The agent is evaluating your response."
-                  : "Speak naturally. Your answer is being analyzed."}
+                  ? "The AI interviewer is evaluating your response."
+                  : interviewComplete
+                    ? "All 10 questions have been completed."
+                    : "Type your answer below and submit when you're ready."}
               </span>
+
             </div>
 
           </div>
 
         </div>
 
-        {/* RIGHT */}
 
+        {/* RIGHT ANALYSIS PANEL */}
         <aside className="evidence-panel">
 
           <div className="panel-title">
+
             <div>
               <span>LIVE ANALYSIS</span>
               <h3>Evidence Map</h3>
             </div>
 
             <span className="analysis-dot"></span>
+
           </div>
 
-          {/* SKILLS */}
 
           <div className="skill-section">
 
             <div className="skill-row">
+
               <span>Communication</span>
 
               <div className="skill-bar">
+
                 <div
                   className="skill-fill"
-                  style={{ width: "82%" }}
+                  style={{
+                    width: `${communicationScore}%`,
+                  }}
                 />
+
               </div>
 
-              <small>82</small>
+              <small>
+                {communicationScore}
+              </small>
+
             </div>
 
+
             <div className="skill-row">
+
               <span>Problem Solving</span>
 
               <div className="skill-bar">
+
                 <div
                   className="skill-fill"
-                  style={{ width: "68%" }}
+                  style={{
+                    width: `${problemSolvingScore}%`,
+                  }}
                 />
+
               </div>
 
-              <small>68</small>
+              <small>
+                {problemSolvingScore}
+              </small>
+
             </div>
 
+
             <div className="skill-row">
+
               <span>Technical Depth</span>
 
               <div className="skill-bar">
+
                 <div
                   className="skill-fill"
-                  style={{ width: "54%" }}
+                  style={{
+                    width: `${technicalDepthScore}%`,
+                  }}
                 />
+
               </div>
 
-              <small>54</small>
+              <small>
+                {technicalDepthScore}
+              </small>
+
             </div>
 
           </div>
 
-          {/* EVIDENCE */}
 
           <div className="evidence-list">
 
@@ -149,36 +284,53 @@ function Interview() {
               Detected Evidence
             </div>
 
-            <div className="evidence-row">
-              <span className="check">✓</span>
-              Ownership
-            </div>
+            {evaluation?.evidence?.length > 0 ? (
 
-            <div className="evidence-row">
-              <span className="check">✓</span>
-              Decision making
-            </div>
+              evaluation.evidence.map((item, index) => (
 
-            <div className="evidence-row muted">
-              <span>○</span>
-              Technical depth
-            </div>
+                <div
+                  className="evidence-row"
+                  key={index}
+                >
+
+                  <span className="check">
+                    ✓
+                  </span>
+
+                  {item}
+
+                </div>
+
+              ))
+
+            ) : (
+
+              <div className="evidence-row muted">
+                <span>○</span>
+                Evidence will appear after submission
+              </div>
+
+            )}
 
           </div>
 
-          {/* AGENT DECISION */}
 
           <div className="agent-decision">
 
-            <span>AGENT DECISION</span>
+            <span>
+              AGENT DECISION
+            </span>
 
             <strong>
-              → Explore technical depth
+              {agentDecision}
             </strong>
 
             <p>
-              Your last answer showed strong
-              ownership but limited technical detail.
+              {evaluation?.weaknesses?.length > 0
+                ? evaluation.weaknesses[0]
+                : interviewComplete
+                  ? "All 10 interview questions have been completed."
+                  : "Your answer will be evaluated for reasoning, evidence, and technical depth."}
             </p>
 
           </div>
@@ -187,14 +339,19 @@ function Interview() {
 
       </section>
 
-      {/* ANSWER BAR */}
 
+      {/* ANSWER BAR */}
       <section className="answer-section">
 
         <textarea
           value={answer}
           onChange={(e) => setAnswer(e.target.value)}
-          placeholder="Type your answer here..."
+          placeholder={
+            interviewComplete
+              ? "Interview completed."
+              : "Type your answer here..."
+          }
+          disabled={submitted || interviewComplete}
         />
 
         <div className="answer-controls">
@@ -205,14 +362,61 @@ function Interview() {
 
           <button
             onClick={handleSubmit}
-            disabled={!answer.trim()}
+            disabled={
+              !answer.trim() ||
+              submitted ||
+              interviewComplete
+            }
           >
-            Submit Answer →
+            {submitted
+              ? "Analyzing..."
+              : interviewComplete
+                ? "Interview Complete ✓"
+                : "Submit Answer →"}
           </button>
 
         </div>
 
       </section>
+
+
+      {/* COMPLETION OVERLAY */}
+      {interviewComplete && (
+
+        <div className="completion-overlay">
+
+          <div className="completion-modal">
+
+            <div className="completion-icon">
+              ✓
+            </div>
+
+            <span className="completion-label">
+              INTERVIEW COMPLETED
+            </span>
+
+            <h2>
+              Great job. You've completed the interview.
+            </h2>
+
+            <p>
+              Your responses have been analyzed.
+              Review your performance, strengths,
+              weaknesses, and areas for improvement.
+            </p>
+
+            <button
+              className="analyze-score-btn"
+              onClick={openReport}
+            >
+              Analyze My Score →
+            </button>
+
+          </div>
+
+        </div>
+
+      )}
 
     </main>
   );
