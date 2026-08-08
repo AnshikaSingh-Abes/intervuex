@@ -1,3 +1,4 @@
+
 const { generateAIResponse } = require("../services/gemini");
 
 async function evaluateAnswer(question, answer) {
@@ -12,12 +13,15 @@ ${question}
 Candidate Answer:
 ${answer}
 
-Evaluate the answer carefully.
+Return ONLY a valid JSON object.
 
-Return ONLY valid JSON in exactly this structure:
+Use EXACTLY this structure:
 
 {
   "score": 0,
+  "communication": 0,
+  "problemSolving": 0,
+  "technicalDepth": 0,
   "strengths": [],
   "weaknesses": [],
   "evidence": [],
@@ -25,20 +29,42 @@ Return ONLY valid JSON in exactly this structure:
 }
 
 Rules:
-- score must be a number from 0 to 10
-- strengths should contain specific things the candidate did well
-- weaknesses should contain specific problems or gaps
-- evidence should contain claims or details actually supported by the candidate's answer
-- missingEvidence should contain important information that should have been provided but was not
-- Do not invent information that the candidate did not say
+
+- score must be a number from 0 to 10.
+- communication must be a number from 0 to 100.
+- problemSolving must be a number from 0 to 100.
+- technicalDepth must be a number from 0 to 100.
+- strengths must be an array of specific strings.
+- weaknesses must be an array of specific strings.
+- evidence must contain only details actually present in the candidate's answer.
+- missingEvidence must contain important details that the candidate should have provided but did not.
+- Evaluate communication based on clarity, structure, relevance, and ability to explain ideas.
+- Evaluate problemSolving based on reasoning, obstacles, decisions, troubleshooting, and solutions.
+- Evaluate technicalDepth based on technical concepts, tools, implementation details, and technical reasoning.
+- Do not invent information.
+- Do not assume experience that the candidate did not mention.
+- Do not use markdown.
+- Do not use code fences.
+- Do not write anything before or after the JSON.
 `;
 
   const response = await generateAIResponse(prompt);
 
+  console.log("GROQ RESPONSE:", response);
+
   try {
-    return JSON.parse(response);
+    const cleanedResponse = response
+      .replace(/```json/gi, "")
+      .replace(/```/g, "")
+      .trim();
+
+    return JSON.parse(cleanedResponse);
+
   } catch (error) {
-    throw new Error("Gemini returned invalid JSON");
+    console.error("JSON PARSE ERROR:", error.message);
+    console.error("RAW GROQ RESPONSE:", response);
+
+    throw new Error("AI returned invalid JSON");
   }
 }
 
