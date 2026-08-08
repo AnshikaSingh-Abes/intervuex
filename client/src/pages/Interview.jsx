@@ -1,7 +1,9 @@
-
-import { useEffect,useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { submitAnswer } from "../services/api";
+import {
+  submitAnswer,
+  startInterview,
+} from "../services/api";
 import "./Interview.css";
 
 function Interview() {
@@ -13,28 +15,80 @@ function Interview() {
 
   const [questionNumber, setQuestionNumber] = useState(1);
 
-  const [currentQuestion, setCurrentQuestion] = useState(
-    "Tell me about a project where something went wrong and how you fixed it."
-  );
+  const [currentQuestion, setCurrentQuestion] = useState("");
 
   const [agentDecision, setAgentDecision] = useState(
-    "→ Ready to evaluate your answer"
+    "→ Preparing your interview..."
   );
 
   const [evaluation, setEvaluation] = useState(null);
 
   // Store every question + answer + AI evaluation
   const [allResults, setAllResults] = useState([]);
-  useEffect(() => {
-  const savedResults = sessionStorage.getItem("interviewResults");
 
-  if (savedResults) {
-    setAllResults(JSON.parse(savedResults));
-  }
-}, []);
+  // Load previous interview results
+  useEffect(() => {
+    const savedResults =
+      sessionStorage.getItem("interviewResults");
+
+    if (savedResults) {
+      setAllResults(JSON.parse(savedResults));
+    }
+  }, []);
+
+  // Start interview and generate first question
+  useEffect(() => {
+    const startNewInterview = async () => {
+      try {
+        const savedSetup =
+          sessionStorage.getItem("interviewSetup");
+
+        if (!savedSetup) {
+          navigate("/setup");
+          return;
+        }
+
+        const setup = JSON.parse(savedSetup);
+
+        console.log("Interview setup:", setup);
+
+        setAgentDecision(
+          "→ Preparing your personalized interview..."
+        );
+
+        const result = await startInterview(setup);
+
+        console.log("Start interview response:", result);
+
+        if (result.question) {
+          setCurrentQuestion(result.question);
+          setAgentDecision("→ Ready for your answer");
+        } else {
+          throw new Error("No first question received");
+        }
+      } catch (error) {
+        console.error(
+          "Failed to start interview:",
+          error
+        );
+
+        setAgentDecision(
+          "→ Failed to start interview"
+        );
+      }
+    };
+
+    startNewInterview();
+  }, [navigate]);
 
   const handleSubmit = async () => {
-    if (!answer.trim() || submitted || interviewComplete) return;
+    if (
+      !answer.trim() ||
+      submitted ||
+      interviewComplete
+    ) {
+      return;
+    }
 
     const currentAnswer = answer.trim();
 
@@ -42,9 +96,10 @@ function Interview() {
       setSubmitted(true);
 
       const result = await submitAnswer(
-        currentQuestion,
-        currentAnswer
-      );
+  currentQuestion,
+  currentAnswer,
+  allResults
+);
 
       console.log("API Response:", result);
 
@@ -60,48 +115,79 @@ function Interview() {
         };
 
         setAllResults((previous) => {
-  const updatedResults = [...previous, questionResult];
+          const updatedResults = [
+            ...previous,
+            questionResult,
+          ];
 
-  sessionStorage.setItem(
-    "interviewResults",
-    JSON.stringify(updatedResults)
-  );
+          sessionStorage.setItem(
+            "interviewResults",
+            JSON.stringify(updatedResults)
+          );
 
-  return updatedResults;
-});
+          return updatedResults;
+        });
       }
 
       // Update agent decision
       if (result.action) {
         if (result.action === "DEEPEN") {
-          setAgentDecision("→ Explore technical depth");
+          setAgentDecision(
+            "→ Explore technical depth"
+          );
         } else if (result.action === "CLARIFY") {
-          setAgentDecision("→ Ask for clarification");
+          setAgentDecision(
+            "→ Ask for clarification"
+          );
         } else if (result.action === "MOVE_ON") {
-          setAgentDecision("→ Move to next topic");
+          setAgentDecision(
+            "→ Move to next topic"
+          );
+        } else if (
+          result.action === "NEXT_TOPIC"
+        ) {
+          setAgentDecision(
+            "→ Move to next topic"
+          );
         } else {
-          setAgentDecision(`→ ${result.action}`);
+          setAgentDecision(
+            `→ ${result.action}`
+          );
         }
       }
 
       // Question 10 = interview finished
       if (questionNumber === 10) {
         setInterviewComplete(true);
-        setAgentDecision("→ Interview completed");
+        setAgentDecision(
+          "→ Interview completed"
+        );
         setAnswer("");
         return;
       }
 
       // Move to next question
-      if (questionNumber < 10 && result.nextQuestion) {
+      if (
+        questionNumber < 10 &&
+        result.nextQuestion
+      ) {
+        console.log("NEXT QUESTION RECEIVED:", result.nextQuestion);
+
         setCurrentQuestion(result.nextQuestion);
-        setQuestionNumber((previous) => previous + 1);
+
+        setQuestionNumber(
+          (previous) => previous + 1
+        );
+      } else {
+        console.log("NO NEXT QUESTION:", result);
       }
 
       setAnswer("");
-
     } catch (error) {
-      console.error("Error submitting answer:", error);
+      console.error(
+        "Error submitting answer:",
+        error
+      );
     } finally {
       setSubmitted(false);
     }
@@ -138,14 +224,16 @@ function Interview() {
           <span>INTERVIEW</span>
 
           <strong>
-            {String(questionNumber).padStart(2, "0")}
+            {String(questionNumber).padStart(
+              2,
+              "0"
+            )}
           </strong>
 
           <span>/ 10</span>
         </div>
 
       </header>
-
 
       {/* MAIN INTERVIEW */}
       <section className="interview-layout">
@@ -157,15 +245,19 @@ function Interview() {
             AI INTERVIEWER · LIVE
           </div>
 
-
           <div className="question-container">
 
             <span className="question-number">
-              QUESTION {String(questionNumber).padStart(2, "0")}
+              QUESTION{" "}
+              {String(questionNumber).padStart(
+                2,
+                "0"
+              )}
             </span>
 
             <h1>
-              {currentQuestion}
+              {currentQuestion ||
+                "Preparing your first question..."}
             </h1>
 
             <p>
@@ -175,7 +267,6 @@ function Interview() {
             </p>
 
           </div>
-
 
           <div className="listening-state">
 
@@ -188,7 +279,9 @@ function Interview() {
                   ? "Analyzing your answer..."
                   : interviewComplete
                     ? "Interview completed"
-                    : "Ready for your answer"}
+                    : currentQuestion
+                      ? "Ready for your answer"
+                      : "Preparing interview..."}
               </strong>
 
               <span>
@@ -205,7 +298,6 @@ function Interview() {
 
         </div>
 
-
         {/* RIGHT ANALYSIS PANEL */}
         <aside className="evidence-panel">
 
@@ -219,7 +311,6 @@ function Interview() {
             <span className="analysis-dot"></span>
 
           </div>
-
 
           <div className="skill-section">
 
@@ -244,7 +335,6 @@ function Interview() {
 
             </div>
 
-
             <div className="skill-row">
 
               <span>Problem Solving</span>
@@ -265,7 +355,6 @@ function Interview() {
               </small>
 
             </div>
-
 
             <div className="skill-row">
 
@@ -290,7 +379,6 @@ function Interview() {
 
           </div>
 
-
           <div className="evidence-list">
 
             <div className="evidence-heading">
@@ -299,34 +387,36 @@ function Interview() {
 
             {evaluation?.evidence?.length > 0 ? (
 
-              evaluation.evidence.map((item, index) => (
+              evaluation.evidence.map(
+                (item, index) => (
 
-                <div
-                  className="evidence-row"
-                  key={index}
-                >
+                  <div
+                    className="evidence-row"
+                    key={index}
+                  >
 
-                  <span className="check">
-                    ✓
-                  </span>
+                    <span className="check">
+                      ✓
+                    </span>
 
-                  {item}
+                    {item}
 
-                </div>
+                  </div>
 
-              ))
+                )
+              )
 
             ) : (
 
               <div className="evidence-row muted">
                 <span>○</span>
-                Evidence will appear after submission
+                Evidence will appear after
+                submission
               </div>
 
             )}
 
           </div>
-
 
           <div className="agent-decision">
 
@@ -339,7 +429,8 @@ function Interview() {
             </strong>
 
             <p>
-              {evaluation?.weaknesses?.length > 0
+              {evaluation?.weaknesses?.length >
+                0
                 ? evaluation.weaknesses[0]
                 : interviewComplete
                   ? "All 10 interview questions have been completed."
@@ -352,19 +443,26 @@ function Interview() {
 
       </section>
 
-
       {/* ANSWER BAR */}
       <section className="answer-section">
 
         <textarea
           value={answer}
-          onChange={(e) => setAnswer(e.target.value)}
+          onChange={(e) =>
+            setAnswer(e.target.value)
+          }
           placeholder={
             interviewComplete
               ? "Interview completed."
-              : "Type your answer here..."
+              : currentQuestion
+                ? "Type your answer here..."
+                : "Preparing interview..."
           }
-          disabled={submitted || interviewComplete}
+          disabled={
+            submitted ||
+            interviewComplete ||
+            !currentQuestion
+          }
         />
 
         <div className="answer-controls">
@@ -378,7 +476,8 @@ function Interview() {
             disabled={
               !answer.trim() ||
               submitted ||
-              interviewComplete
+              interviewComplete ||
+              !currentQuestion
             }
           >
             {submitted
@@ -391,7 +490,6 @@ function Interview() {
         </div>
 
       </section>
-
 
       {/* COMPLETION OVERLAY */}
       {interviewComplete && (
@@ -409,13 +507,15 @@ function Interview() {
             </span>
 
             <h2>
-              Great job. You've completed the interview.
+              Great job. You've completed the
+              interview.
             </h2>
 
             <p>
               Your responses have been analyzed.
               Review your performance, strengths,
-              weaknesses, and areas for improvement.
+              weaknesses, and areas for
+              improvement.
             </p>
 
             <button
