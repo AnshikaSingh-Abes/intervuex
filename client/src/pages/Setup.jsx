@@ -12,14 +12,26 @@ function Setup() {
   const [error, setError] = useState("");
 
   const handleStart = () => {
-    if (!resume || !role.trim() || !jobDescription.trim()) {
-      setError("Please fill all required details to proceed.");
-      return;
-    }
+  if (!resume || !role.trim() || !jobDescription.trim()) {
+    setError("Please fill all required details to proceed.");
+    return;
+  }
 
-    setError("");
-    navigate("/interview");
+  const interviewSetup = {
+    role: role.trim(),
+    jobDescription: jobDescription.trim(),
+    mode,
+    resumeName: resume.name,
   };
+
+  sessionStorage.setItem(
+    "interviewSetup",
+    JSON.stringify(interviewSetup)
+  );
+
+  setError("");
+  navigate("/interview");
+};
 
   return (
     <main>

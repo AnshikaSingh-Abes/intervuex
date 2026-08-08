@@ -1,10 +1,12 @@
 require("dotenv").config({
   path: "../ai-agent/.env"
 });
+
 const express = require("express");
 const cors = require("cors");
 
 const processAnswer = require("../ai-agent/engine/interviewEngine");
+const generateQuestion = require("../ai-agent/tools/generateQuestion");
 
 const app = express();
 
@@ -16,10 +18,50 @@ app.get("/", (req, res) => {
     message: "IntervueX backend is running!"
   });
 });
+app.post("/api/interview/start", async (req, res) => {
+  try {
+    const {
+      role,
+      jobDescription,
+      mode,
+      resumeName,
+    } = req.body;
+
+    if (!role || !jobDescription || !mode) {
+      return res.status(400).json({
+        error: "Role, job description, and interview mode are required.",
+      });
+    }
+
+    const firstQuestion = await generateQuestion({
+      role,
+      jobDescription,
+      mode,
+      resumeName,
+      action: "START",
+      instruction:
+        "This is the first question of the interview. Start naturally and assess the candidate's relevant experience.",
+    });
+
+    res.json({
+      question: firstQuestion,
+    });
+  } catch (error) {
+    console.error("Start interview error:", error);
+
+    res.status(500).json({
+      error: "Failed to start interview.",
+    });
+  }
+});
 
 app.post("/api/interview", async (req, res) => {
   try {
-    const { question, answer } = req.body;
+    const {
+  question,
+  answer,
+  history = []
+} = req.body;
 
     if (!question || !answer) {
       return res.status(400).json({
@@ -27,7 +69,11 @@ app.post("/api/interview", async (req, res) => {
       });
     }
 
-    const result = await processAnswer(question, answer);
+    const result = await processAnswer(
+  question,
+  answer,
+  history
+);
 
     res.json(result);
   } catch (error) {
