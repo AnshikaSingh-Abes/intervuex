@@ -1,10 +1,10 @@
 const processAnswer = require("./engine/interviewEngine");
 
-async function main() {
+async function test() {
   try {
     const result = await processAnswer(
-      "Tell me about your ML project.",
-      "I built a recommendation system using Python."
+      "What algorithm did you use for your recommendation system?",
+      "I used Random Forest because it performed well on my dataset."
     );
 
     console.log("\n=== INTERVIEW RESULT ===\n");
@@ -18,9 +18,9 @@ async function main() {
     console.log("\nNext Question:");
     console.log(result.nextQuestion);
   } catch (error) {
-    console.error("Interview error:");
+    console.error("Interview engine error:");
     console.error(error.message);
   }
 }
 
-main();
+test();

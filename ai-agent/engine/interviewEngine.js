@@ -2,13 +2,12 @@ const evaluateAnswer = require("../tools/evaluateAnswer");
 const chooseNextAction = require("../tools/chooseNextAction");
 const generateQuestion = require("../tools/generateQuestion");
 
-function processAnswer(question, answer) {
-
-  const evaluation = evaluateAnswer(question, answer);
+async function processAnswer(question, answer) {
+  const evaluation = await evaluateAnswer(question, answer);
 
   const action = chooseNextAction(evaluation);
 
-  const nextQuestion = generateQuestion({
+  const nextQuestion = await generateQuestion({
     question,
     answer,
     evaluation,
