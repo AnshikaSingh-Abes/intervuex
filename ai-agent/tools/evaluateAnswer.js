@@ -34,9 +34,21 @@ Rules:
 - communication must be a number from 0 to 100.
 - problemSolving must be a number from 0 to 100.
 - technicalDepth must be a number from 0 to 100.
-- strengths must be an array of specific strings.
-- weaknesses must be an array of specific strings.
+- strengths must be an array of specific positive observations supported by the candidate's answer.
+- If the candidate demonstrated any useful skill, correct technical approach, good reasoning, relevant experience, clear communication, debugging ability, or effective decision-making, include it as a strength.
+- Do not leave strengths empty when the answer contains genuine positive evidence.
+- Every strength must be directly supported by something the candidate actually said.
+- Do not invent achievements, tools, experience, or results.
+- strengths must be an array of 0 to 3 specific strengths.
+- Only identify strengths that are clearly demonstrated in the candidate's answer.
+- Each strength must describe something the candidate actually did well.
+- Do not give generic praise such as "good answer" or "strong candidate".
+- Strengths can relate to communication, problem solving, technical knowledge, reasoning, decision making, or relevant experience.
+- Do not invent strengths that are not supported by the answer.
+- If the answer does not demonstrate any meaningful strength, return an empty strengths array.
 - evidence must contain only details actually present in the candidate's answer.
+- Use the evidence to identify both strengths and weaknesses.
+- A strength can be a positive behavior or capability demonstrated in the answer, even if the answer is not perfect.
 - missingEvidence must contain important details that the candidate should have provided but did not.
 - Evaluate communication based on clarity, structure, relevance, and ability to explain ideas.
 - Evaluate problemSolving based on reasoning, obstacles, decisions, troubleshooting, and solutions.

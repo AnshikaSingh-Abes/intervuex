@@ -1,121 +1,188 @@
-import { Link, useLocation, useNavigate } from "react-router-dom";
-import { useEffect, useMemo, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
+import { useMemo } from "react";
 import "./Report.css";
 
 function Report() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  const [results, setResults] = useState([]);
+  // --------------------------------------------------
+  // GET RESULTS
+  // --------------------------------------------------
 
-  useEffect(() => {
-    // First preference: data passed through navigation
-    if (location.state?.results?.length) {
-      setResults(location.state.results);
-      return;
+  const resultsFromState = location.state?.results || [];
+
+  const savedResults = sessionStorage.getItem("interviewResults");
+
+  const results = useMemo(() => {
+    if (
+      Array.isArray(resultsFromState) &&
+      resultsFromState.length > 0
+    ) {
+      return resultsFromState;
     }
-
-    // Otherwise load from sessionStorage
-    const savedResults = sessionStorage.getItem("interviewResults");
 
     if (savedResults) {
       try {
         const parsed = JSON.parse(savedResults);
-        setResults(parsed);
+
+        return Array.isArray(parsed) ? parsed : [];
       } catch (error) {
-        console.error("Could not read interview results:", error);
+        console.error("Failed to parse interview results:", error);
+        return [];
       }
     }
-  }, [location.state]);
+
+    return [];
+  }, [resultsFromState, savedResults]);
 
   // --------------------------------------------------
-  // CALCULATE OVERALL SCORES
+  // HELPERS
   // --------------------------------------------------
 
-  const overall = useMemo(() => {
-    if (!results.length) {
-      return {
-        score: 0,
-        communication: 0,
-        problemSolving: 0,
-        technicalDepth: 0,
-      };
+  const numberValue = (value) => {
+    const number = Number(value);
+
+    return Number.isFinite(number) ? number : 0;
+  };
+
+  const getText = (item) => {
+    if (!item) return "";
+
+    if (typeof item === "string") {
+      return item;
     }
 
-    let communicationTotal = 0;
-    let problemSolvingTotal = 0;
-    let technicalDepthTotal = 0;
-    let scoreTotal = 0;
+    return item.statement || item.text || item.description || "";
+  };
 
-    results.forEach((item) => {
-      const evaluation = item.evaluation || {};
+  // --------------------------------------------------
+  // OVERALL SCORE
+  // --------------------------------------------------
 
-      communicationTotal += Number(evaluation.communication || 0);
-      problemSolvingTotal += Number(evaluation.problemSolving || 0);
-      technicalDepthTotal += Number(evaluation.technicalDepth || 0);
+  const overallScore = useMemo(() => {
+    if (!results.length) {
+      return 0;
+    }
 
-      scoreTotal += Number(evaluation.score || 0);
-    });
+    const scores = results.map((result) =>
+      numberValue(result.evaluation?.score)
+    );
 
-    return {
-      score: Math.round(scoreTotal / results.length),
-      communication: Math.round(
-        communicationTotal / results.length
-      ),
-      problemSolving: Math.round(
-        problemSolvingTotal / results.length
-      ),
-      technicalDepth: Math.round(
-        technicalDepthTotal / results.length
-      ),
-    };
+    const total = scores.reduce(
+      (sum, score) => sum + score,
+      0
+    );
+
+    return Math.round(
+      (total / results.length) * 10
+    );
   }, [results]);
 
   // --------------------------------------------------
-  // COLLECT ALL STRENGTHS / WEAKNESSES
+  // SKILL SCORES
+  // --------------------------------------------------
+
+  const communicationScore = useMemo(() => {
+    if (!results.length) return 0;
+
+    const scores = results.map((result) =>
+      numberValue(result.evaluation?.communication)
+    );
+
+    return Math.round(
+      scores.reduce((sum, score) => sum + score, 0) /
+        scores.length
+    );
+  }, [results]);
+
+  const problemSolvingScore = useMemo(() => {
+    if (!results.length) return 0;
+
+    const scores = results.map((result) =>
+      numberValue(result.evaluation?.problemSolving)
+    );
+
+    return Math.round(
+      scores.reduce((sum, score) => sum + score, 0) /
+        scores.length
+    );
+  }, [results]);
+
+  const technicalDepthScore = useMemo(() => {
+    if (!results.length) return 0;
+
+    const scores = results.map((result) =>
+      numberValue(result.evaluation?.technicalDepth)
+    );
+
+    return Math.round(
+      scores.reduce((sum, score) => sum + score, 0) /
+        scores.length
+    );
+  }, [results]);
+
+  // --------------------------------------------------
+  // CONSISTENCY
+  // --------------------------------------------------
+
+  const consistencyScore = useMemo(() => {
+    if (!results.length) return 0;
+
+    const scores = results.map(
+      (result) =>
+        numberValue(result.evaluation?.score) * 10
+    );
+
+    if (scores.length === 1) {
+      return Math.round(scores[0]);
+    }
+
+    const average =
+      scores.reduce(
+        (sum, score) => sum + score,
+        0
+      ) / scores.length;
+
+    const variance =
+      scores.reduce(
+        (sum, score) =>
+          sum + Math.pow(score - average, 2),
+        0
+      ) / scores.length;
+
+    const deviation = Math.sqrt(variance);
+
+    return Math.round(
+      Math.max(
+        0,
+        Math.min(100, 100 - deviation)
+      )
+    );
+  }, [results]);
+
+  // --------------------------------------------------
+  // STRENGTHS
   // --------------------------------------------------
 
   const strengths = useMemo(() => {
     const items = [];
 
     results.forEach((result) => {
-      const list = result.evaluation?.strengths || [];
+      const evaluationStrengths =
+        result.evaluation?.strengths || [];
 
-      list.forEach((item) => {
-        if (item && !items.includes(item)) {
-          items.push(item);
-        }
-      });
-    });
+      const observationStrengths =
+        result.observation?.strengths || [];
 
-    return items.slice(0, 6);
-  }, [results]);
+      [
+        ...evaluationStrengths,
+        ...observationStrengths,
+      ].forEach((item) => {
+        const text = getText(item);
 
-  const weaknesses = useMemo(() => {
-    const items = [];
-
-    results.forEach((result) => {
-      const list = result.evaluation?.weaknesses || [];
-
-      list.forEach((item) => {
-        if (item && !items.includes(item)) {
-          items.push(item);
-        }
-      });
-    });
-
-    return items.slice(0, 6);
-  }, [results]);
-
-  const missingEvidence = useMemo(() => {
-    const items = [];
-
-    results.forEach((result) => {
-      const list = result.evaluation?.missingEvidence || [];
-
-      list.forEach((item) => {
-        if (item && !items.includes(item)) {
-          items.push(item);
+        if (text && !items.includes(text)) {
+          items.push(text);
         }
       });
     });
@@ -124,23 +191,119 @@ function Report() {
   }, [results]);
 
   // --------------------------------------------------
+  // WEAKNESSES
+  // --------------------------------------------------
+
+  const weaknesses = useMemo(() => {
+    const items = [];
+
+    results.forEach((result) => {
+      const evaluationWeaknesses =
+        result.evaluation?.weaknesses || [];
+
+      const observationWeaknesses =
+        result.observation?.weaknesses || [];
+
+      [
+        ...evaluationWeaknesses,
+        ...observationWeaknesses,
+      ].forEach((item) => {
+        const text = getText(item);
+
+        if (text && !items.includes(text)) {
+          items.push(text);
+        }
+      });
+    });
+
+    return items.slice(0, 8);
+  }, [results]);
+
+  // --------------------------------------------------
+  // MISSING EVIDENCE
+  // --------------------------------------------------
+
+  const missingEvidence = useMemo(() => {
+    const items = [];
+
+    results.forEach((result) => {
+      const evaluationMissing =
+        result.evaluation?.missingEvidence || [];
+
+      const observationMissing =
+        result.observation?.missingEvidence || [];
+
+      [
+        ...evaluationMissing,
+        ...observationMissing,
+      ].forEach((item) => {
+        const text = getText(item);
+
+        if (text && !items.includes(text)) {
+          items.push(text);
+        }
+      });
+    });
+
+    return items.slice(0, 10);
+  }, [results]);
+
+  // --------------------------------------------------
+  // AGENT JOURNEY
+  // --------------------------------------------------
+
+  const agentJourney = useMemo(() => {
+    let detectedEvidence = false;
+    let identifiedGaps = false;
+    let adaptedQuestioning = false;
+
+    results.forEach((result) => {
+      if (result.evidence?.length > 0) {
+        detectedEvidence = true;
+      }
+
+      if (
+        result.evaluation?.missingEvidence?.length > 0 ||
+        result.observation?.missingEvidence?.length > 0
+      ) {
+        identifiedGaps = true;
+      }
+
+      if (
+        result.observation ||
+        result.action === "DEEPEN" ||
+        result.action === "CLARIFY"
+      ) {
+        adaptedQuestioning = true;
+      }
+    });
+
+    return {
+      startedBroad: results.length > 0,
+      detectedEvidence,
+      identifiedGaps,
+      adaptedQuestioning,
+    };
+  }, [results]);
+
+  // --------------------------------------------------
   // RECOMMENDATION
   // --------------------------------------------------
 
   const recommendation = useMemo(() => {
-    if (overall.score >= 80) {
+    if (overallScore >= 80) {
       return {
         title: "Strong interview performance",
         text:
-          "The candidate demonstrated strong communication, reasoning, and technical understanding across the interview.",
+          "Your answers demonstrated strong communication, reasoning, and technical evidence. Continue refining your examples with measurable outcomes and clear trade-offs.",
       };
     }
 
-    if (overall.score >= 60) {
+    if (overallScore >= 60) {
       return {
-        title: "Proceed with deeper validation",
+        title: "Good foundation",
         text:
-          "The candidate showed promising skills, but some areas need deeper technical evidence and stronger examples.",
+          "Your interview showed a solid foundation. Strengthen your examples with clearer reasoning, implementation details, and measurable outcomes.",
       };
     }
 
@@ -149,7 +312,15 @@ function Report() {
       text:
         "The interview showed several areas where stronger examples, clearer reasoning, and deeper technical evidence would improve the performance.",
     };
-  }, [overall.score]);
+  }, [overallScore]);
+
+  // --------------------------------------------------
+  // PROJECT ANALYSIS
+  // --------------------------------------------------
+
+  const openProjectAnalysis = () => {
+    navigate("/project-analysis");
+  };
 
   // --------------------------------------------------
   // NO RESULTS
@@ -158,826 +329,566 @@ function Report() {
   if (!results.length) {
     return (
       <main className="report-page">
+        <section className="report-empty">
+          <span>INTERVIEW REPORT</span>
 
-        <header className="report-header">
-          <div className="report-brand">IntervueX</div>
+          <h1>No interview results found.</h1>
 
-          <span className="report-status">
-            INTERVIEW REPORT
-          </span>
-        </header>
+          <p>
+            Complete an interview first to generate
+            your performance report.
+          </p>
 
-        <section className="report-container">
-
-          <div className="report-intro">
-            <p className="section-eyebrow">
-              INTERVIEW REPORT
-            </p>
-
-            <h1>
-              No interview
-              <span>data found.</span>
-            </h1>
-
-            <p>
-              Complete an interview first so IntervueX can
-              generate your detailed performance analysis.
-            </p>
-
-            <Link
-              to="/interview"
-              className="report-button"
-            >
-              Start Interview →
-            </Link>
-          </div>
-
+          <button onClick={() => navigate("/setup")}>
+            Start Interview →
+          </button>
         </section>
       </main>
     );
   }
+
+  // --------------------------------------------------
+  // MAIN UI
+  // --------------------------------------------------
 
   return (
     <main className="report-page">
 
       {/* HEADER */}
 
-      <header className="report-header">
-
-        <div className="report-brand">
-          IntervueX
-        </div>
-
-        <span className="report-status">
-          INTERVIEW COMPLETE
-        </span>
-
-      </header>
-
-
-      {/* MAIN */}
-
-      <section className="report-container">
-
-        {/* INTRO */}
-
-        <div className="report-intro">
-
-          <p className="section-eyebrow">
+      <section className="report-header">
+        <div>
+          <span className="section-eyebrow">
             INTERVIEW REPORT
-          </p>
+          </span>
 
           <h1>
             Evidence,
-            <span>not just scores.</span>
+            <span> not just scores.</span>
           </h1>
 
           <p>
-            Your interview was evaluated across demonstrated
-            skills, reasoning quality, communication, and
-            technical depth.
+            Your interview was evaluated across
+            demonstrated skills, reasoning quality,
+            communication, and technical depth.
           </p>
+        </div>
+      </section>
 
+      {/* OVERALL SCORE */}
+
+      <section className="overall-report-card">
+        <div>
+          <span className="report-label">
+            OVERALL SCORE
+          </span>
+
+          <div className="overall-score">
+            <strong>{overallScore}</strong>
+            <span>/100</span>
+          </div>
+
+          <p>
+            Based on{" "}
+            <strong>{results.length}</strong>{" "}
+            interview responses, IntervueX evaluated
+            your communication, problem solving,
+            and technical depth.
+          </p>
         </div>
 
+        <div className="recommendation-box">
+          <span>AGENT RECOMMENDATION</span>
 
-        {/* OVERALL SCORE */}
+          <h3>{recommendation.title}</h3>
 
-        <section className="score-card">
+          <p>{recommendation.text}</p>
+        </div>
+      </section>
+
+      {/* SKILL EVALUATION */}
+
+      <section className="report-section">
+        <div className="report-section-header">
+          <span>01</span>
 
           <div>
+            <h2>SKILL EVALUATION</h2>
+            <p>What the agent observed</p>
+          </div>
+        </div>
 
-            <span className="score-label">
-              OVERALL SCORE
-            </span>
+        <div className="skill-report-grid">
 
-            <div className="score-number">
-              {overall.score}
-              <span>/100</span>
+          <div className="skill-report-card">
+            <div className="skill-report-top">
+              <span>Communication</span>
+              <strong>{communicationScore}</strong>
             </div>
 
-            <p className="score-summary">
-              Based on {results.length} interview response
-              {results.length !== 1 ? "s" : ""}, IntervueX
-              evaluated your communication, problem solving,
-              and technical depth.
-            </p>
-
-          </div>
-
-
-          <div className="recommendation">
-
-            <span>
-              AGENT RECOMMENDATION
-            </span>
-
-            <strong>
-              {recommendation.title}
-            </strong>
+            <div className="report-progress">
+              <div
+                style={{
+                  width: `${communicationScore}%`,
+                }}
+              />
+            </div>
 
             <p>
-              {recommendation.text}
+              {communicationScore >= 70
+                ? "You communicated your ideas clearly and provided useful context."
+                : "Try to structure answers more clearly and provide stronger context."}
             </p>
-
           </div>
 
-        </section>
-
-
-        {/* SKILLS */}
-
-        <section className="report-section">
-
-          <div className="report-section-title">
-
-            <span>01</span>
-
-            <div>
-              <p>SKILL EVALUATION</p>
-
-              <h2>
-                What the agent observed
-              </h2>
+          <div className="skill-report-card">
+            <div className="skill-report-top">
+              <span>Problem Solving</span>
+              <strong>{problemSolvingScore}</strong>
             </div>
 
-          </div>
-
-
-          <div className="report-skills">
-
-            <Skill
-              name="Communication"
-              score={overall.communication}
-              width={`${overall.communication}%`}
-              description={
-                overall.communication >= 75
-                  ? "Clear and structured communication was demonstrated."
-                  : "Try to structure answers more clearly and provide stronger context."
-              }
-            />
-
-            <Skill
-              name="Problem Solving"
-              score={overall.problemSolving}
-              width={`${overall.problemSolving}%`}
-              description={
-                overall.problemSolving >= 75
-                  ? "Good reasoning and practical problem-solving evidence."
-                  : "Explain your reasoning, debugging process, and decisions in more detail."
-              }
-            />
-
-            <Skill
-              name="Technical Depth"
-              score={overall.technicalDepth}
-              width={`${overall.technicalDepth}%`}
-              description={
-                overall.technicalDepth >= 75
-                  ? "Strong technical evidence was present in the responses."
-                  : "Add implementation details, technical decisions, trade-offs, and measurable outcomes."
-              }
-            />
-
-            <Skill
-              name="Interview Consistency"
-              score={overall.score}
-              width={`${overall.score}%`}
-              description={
-                overall.score >= 75
-                  ? "Performance remained strong across the interview."
-                  : "Work on maintaining consistent detail and depth across answers."
-              }
-            />
-
-          </div>
-
-        </section>
-
-
-        {/* STRENGTHS */}
-
-        <section className="report-section">
-
-          <div className="report-section-title">
-
-            <span>02</span>
-
-            <div>
-              <p>STRENGTHS</p>
-
-              <h2>
-                What you did well
-              </h2>
+            <div className="report-progress">
+              <div
+                style={{
+                  width: `${problemSolvingScore}%`,
+                }}
+              />
             </div>
 
+            <p>
+              {problemSolvingScore >= 70
+                ? "Your answers showed useful reasoning, decisions, and solutions."
+                : "Explain your reasoning, debugging process, and decisions in more detail."}
+            </p>
           </div>
 
+          <div className="skill-report-card">
+            <div className="skill-report-top">
+              <span>Technical Depth</span>
+              <strong>{technicalDepthScore}</strong>
+            </div>
 
-          <div className="evidence-grid">
+            <div className="report-progress">
+              <div
+                style={{
+                  width: `${technicalDepthScore}%`,
+                }}
+              />
+            </div>
 
-            {strengths.length > 0 ? (
+            <p>
+              {technicalDepthScore >= 70
+                ? "You provided relevant technical concepts and implementation details."
+                : "Add implementation details, technical decisions, trade-offs, and measurable outcomes."}
+            </p>
+          </div>
 
-              strengths.map((strength, index) => (
+          <div className="skill-report-card">
+            <div className="skill-report-top">
+              <span>Interview Consistency</span>
+              <strong>{consistencyScore}</strong>
+            </div>
 
-                <article
-                  className="evidence-card positive"
-                  key={index}
-                >
+            <div className="report-progress">
+              <div
+                style={{
+                  width: `${consistencyScore}%`,
+                }}
+              />
+            </div>
 
-                  <span>
-                    ✓ STRENGTH
-                  </span>
+            <p>
+              {consistencyScore >= 70
+                ? "Your answers maintained relatively consistent depth throughout the interview."
+                : "Work on maintaining consistent detail and depth across answers."}
+            </p>
+          </div>
 
-                  <h3>
-                    Strong evidence
-                  </h3>
+        </div>
+      </section>
 
-                  <p>
-                    {strength}
-                  </p>
+      {/* STRENGTHS */}
 
-                </article>
+      <section className="report-section">
+        <div className="report-section-header">
+          <span>02</span>
 
-              ))
+          <div>
+            <h2>STRENGTHS</h2>
+            <p>What you did well</p>
+          </div>
+        </div>
 
-            ) : (
-
-              <article className="evidence-card">
-
-                <span>
-                  ○ OBSERVATION
+        <div className="report-list">
+          {strengths.length > 0 ? (
+            strengths.map((strength, index) => (
+              <div
+                className="report-list-item"
+                key={index}
+              >
+                <span className="report-check">
+                  ✓
                 </span>
 
-                <h3>
-                  More evidence needed
-                </h3>
-
-                <p>
-                  The interview did not provide enough
-                  evidence to identify a strong recurring
-                  pattern.
-                </p>
-
-              </article>
-
-            )}
-
-          </div>
-
-        </section>
-
-
-        {/* IMPROVEMENTS */}
-
-        <section className="report-section">
-
-          <div className="report-section-title">
-
-            <span>03</span>
-
-            <div>
-              <p>IMPROVEMENT AREAS</p>
-
-              <h2>
-                Where you can improve
-              </h2>
-            </div>
-
-          </div>
-
-
-          <div className="evidence-grid">
-
-            {weaknesses.length > 0 ? (
-
-              weaknesses.map((weakness, index) => (
-
-                <article
-                  className="evidence-card concern"
-                  key={index}
-                >
-
-                  <span>
-                    ○ IMPROVEMENT
-                  </span>
-
-                  <h3>
-                    Area to strengthen
-                  </h3>
-
-                  <p>
-                    {weakness}
-                  </p>
-
-                </article>
-
-              ))
-
-            ) : (
-
-              <article className="evidence-card">
-
-                <span>
-                  ✓ PERFORMANCE
-                </span>
-
-                <h3>
-                  No major weakness detected
-                </h3>
-
-                <p>
-                  Continue providing detailed examples
-                  and measurable outcomes.
-                </p>
-
-              </article>
-
-            )}
-
-          </div>
-
-        </section>
-
-
-        {/* MISSING EVIDENCE */}
-
-        {missingEvidence.length > 0 && (
-
-          <section className="report-section">
-
-            <div className="report-section-title">
-
-              <span>04</span>
+                <div>
+                  <span>STRENGTH</span>
+                  <strong>{strength}</strong>
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="report-list-item muted">
+              <span>○</span>
 
               <div>
+                <span>OBSERVATION</span>
+
+                <strong>
+                  More evidence needed
+                </strong>
 
                 <p>
-                  MISSING EVIDENCE
+                  The interview did not provide
+                  enough evidence to identify a
+                  strong recurring pattern.
                 </p>
-
-                <h2>
-                  What your answers could include
-                </h2>
-
               </div>
-
             </div>
+          )}
+        </div>
+      </section>
 
+      {/* IMPROVEMENT AREAS */}
 
-            <div className="evidence-grid">
+      <section className="report-section">
+        <div className="report-section-header">
+          <span>03</span>
 
-              {missingEvidence.map(
-                (item, index) => (
+          <div>
+            <h2>IMPROVEMENT AREAS</h2>
+            <p>Where you can improve</p>
+          </div>
+        </div>
 
-                  <article
-                    className="evidence-card concern"
-                    key={index}
-                  >
+        <div className="report-list">
+          {weaknesses.length > 0 ? (
+            weaknesses.map((weakness, index) => (
+              <div
+                className="report-list-item"
+                key={index}
+              >
+                <span className="report-warning">
+                  !
+                </span>
 
-                    <span>
-                      + ADD DETAIL
-                    </span>
+                <div>
+                  <span>IMPROVEMENT</span>
+                  <strong>{weakness}</strong>
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="report-list-item muted">
+              <span>○</span>
 
-                    <h3>
-                      Stronger evidence
-                    </h3>
+              <div>
+                <span>IMPROVEMENT</span>
 
-                    <p>
-                      {item}
-                    </p>
-
-                  </article>
-
-                )
-              )}
-
+                <strong>
+                  No major recurring weakness detected.
+                </strong>
+              </div>
             </div>
+          )}
+        </div>
+      </section>
 
-          </section>
+      {/* MISSING EVIDENCE */}
 
-        )}
+      <section className="report-section">
+        <div className="report-section-header">
+          <span>04</span>
 
+          <div>
+            <h2>MISSING EVIDENCE</h2>
+            <p>What your answers could include</p>
+          </div>
+        </div>
 
-        {/* QUESTION BY QUESTION */}
+        <div className="missing-evidence-grid">
+          {missingEvidence.length > 0 ? (
+            missingEvidence.map((item, index) => (
+              <div
+                className="missing-evidence-card"
+                key={index}
+              >
+                <span>ADD DETAIL</span>
 
-        <section className="report-section">
+                <strong>
+                  Stronger evidence
+                </strong>
 
-          <div className="report-section-title">
+                <p>{item}</p>
+              </div>
+            ))
+          ) : (
+            <div className="missing-evidence-card">
+              <span>EVIDENCE</span>
 
-            <span>05</span>
-
-            <div>
+              <strong>
+                Strong evidence coverage
+              </strong>
 
               <p>
-                QUESTION-BY-QUESTION
+                Your answers provided sufficient
+                evidence across the evaluated areas.
               </p>
-
-              <h2>
-                Your interview performance
-              </h2>
-
             </div>
+          )}
+        </div>
+      </section>
 
+      {/* QUESTION BY QUESTION */}
+
+      <section className="report-section">
+        <div className="report-section-header">
+          <span>05</span>
+
+          <div>
+            <h2>QUESTION-BY-QUESTION</h2>
+            <p>Your interview performance</p>
           </div>
+        </div>
 
+        <div className="question-report-list">
+          {results.map((result, index) => {
+            const score = numberValue(
+              result.evaluation?.score
+            );
 
-          <div className="journey">
+            const communication = numberValue(
+              result.evaluation?.communication
+            );
 
-            {results.map((result, index) => {
+            const problemSolving = numberValue(
+              result.evaluation?.problemSolving
+            );
 
-              const evaluation =
-                result.evaluation || {};
+            const technical = numberValue(
+              result.evaluation?.technicalDepth
+            );
 
-              const score =
-                Number(evaluation.score || 0);
+            const questionEvidence =
+              result.evidence ||
+              result.evaluation?.evidence ||
+              [];
 
-              const communication =
-                Number(
-                  evaluation.communication || 0
-                );
+            const questionWeaknesses =
+              result.evaluation?.weaknesses || [];
 
-              const problemSolving =
-                Number(
-                  evaluation.problemSolving || 0
-                );
+            return (
+              <div
+                className="question-report-card"
+                key={index}
+              >
 
-              const technicalDepth =
-                Number(
-                  evaluation.technicalDepth || 0
-                );
-
-              return (
-
-                <div
-                  className="journey-item"
-                  key={index}
-                >
-
+                <div className="question-report-header">
                   <span>
                     {String(
                       result.questionNumber ||
-                      index + 1
+                        index + 1
                     ).padStart(2, "0")}
                   </span>
 
-
-                  <div style={{ width: "100%" }}>
-
-                    <h3>
-                      {result.question}
-                    </h3>
-
-                    <p
-                      style={{
-                        marginTop: "12px",
-                        color: "#a1a1aa",
-                      }}
-                    >
-                      <strong>
-                        Your answer:
-                      </strong>{" "}
-                      {result.answer}
-                    </p>
-
-
-                    {/* SCORE ROW */}
-
-                    <div
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns:
-                          "repeat(4, 1fr)",
-                        gap: "12px",
-                        marginTop: "20px",
-                      }}
-                    >
-
-                      <MiniScore
-                        label="Overall"
-                        score={score}
-                      />
-
-                      <MiniScore
-                        label="Communication"
-                        score={communication}
-                      />
-
-                      <MiniScore
-                        label="Problem Solving"
-                        score={problemSolving}
-                      />
-
-                      <MiniScore
-                        label="Technical"
-                        score={technicalDepth}
-                      />
-
-                    </div>
-
-
-                    {/* EVIDENCE */}
-
-                    {evaluation.evidence?.length >
-                      0 && (
-
-                      <div
-                        style={{
-                          marginTop: "20px",
-                        }}
-                      >
-
-                        <small
-                          style={{
-                            color: "#52525b",
-                            letterSpacing: "1px",
-                            fontSize: "9px",
-                          }}
-                        >
-                          DETECTED EVIDENCE
-                        </small>
-
-                        {evaluation.evidence.map(
-                          (item, evidenceIndex) => (
-
-                            <p
-                              key={evidenceIndex}
-                              style={{
-                                marginTop: "7px",
-                                color: "#a1a1aa",
-                                fontSize: "12px",
-                              }}
-                            >
-                              ✓ {item}
-                            </p>
-
-                          )
-                        )}
-
-                      </div>
-
-                    )}
-
-
-                    {/* IMPROVEMENT */}
-
-                    {evaluation.weaknesses?.length >
-                      0 && (
-
-                      <div
-                        style={{
-                          marginTop: "18px",
-                        }}
-                      >
-
-                        <small
-                          style={{
-                            color: "#52525b",
-                            letterSpacing: "1px",
-                            fontSize: "9px",
-                          }}
-                        >
-                          IMPROVEMENT
-                        </small>
-
-                        <p
-                          style={{
-                            marginTop: "7px",
-                            color: "#71717a",
-                            fontSize: "12px",
-                            lineHeight: "1.6",
-                          }}
-                        >
-                          {evaluation.weaknesses[0]}
-                        </p>
-
-                      </div>
-
-                    )}
-
-                  </div>
-
+                  <h3>
+                    {result.question}
+                  </h3>
                 </div>
 
-              );
-            })}
+                <div className="candidate-answer">
+                  <span>YOUR ANSWER</span>
 
+                  <p>
+                    {result.answer ||
+                      "No answer provided."}
+                  </p>
+                </div>
+
+                <div className="question-score-grid">
+                  <div>
+                    <span>Overall</span>
+                    <strong>{score}</strong>
+                  </div>
+
+                  <div>
+                    <span>Communication</span>
+                    <strong>
+                      {communication}
+                    </strong>
+                  </div>
+
+                  <div>
+                    <span>Problem Solving</span>
+                    <strong>
+                      {problemSolving}
+                    </strong>
+                  </div>
+
+                  <div>
+                    <span>Technical</span>
+                    <strong>{technical}</strong>
+                  </div>
+                </div>
+
+                <div className="question-evidence">
+                  <span>DETECTED EVIDENCE</span>
+
+                  {questionEvidence.length > 0 ? (
+                    questionEvidence.map(
+                      (item, evidenceIndex) => (
+                        <div
+                          key={evidenceIndex}
+                          className="question-evidence-row"
+                        >
+                          <span>✓</span>
+
+                          <p>
+                            {getText(item)}
+                          </p>
+                        </div>
+                      )
+                    )
+                  ) : (
+                    <p className="muted">
+                      No specific evidence detected.
+                    </p>
+                  )}
+                </div>
+
+                {questionWeaknesses.length > 0 && (
+                  <div className="question-improvement">
+                    <span>IMPROVEMENT</span>
+
+                    <p>
+                      {getText(
+                        questionWeaknesses[0]
+                      )}
+                    </p>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* AGENT JOURNEY */}
+
+      <section className="report-section">
+        <div className="report-section-header">
+          <span>06</span>
+
+          <div>
+            <h2>AGENT JOURNEY</h2>
+            <p>How the interview adapted</p>
           </div>
+        </div>
 
-        </section>
+        <div className="agent-journey">
 
-
-        {/* AGENT JOURNEY */}
-
-        <section className="report-section">
-
-          <div className="report-section-title">
-
-            <span>06</span>
-
-            <div>
-
-              <p>
-                AGENT JOURNEY
-              </p>
-
-              <h2>
-                How the interview adapted
-              </h2>
-
+          <div className="journey-item">
+            <div className="journey-number">
+              01
             </div>
 
+            <div>
+              <h3>Started broad</h3>
+
+              <p>
+                The agent began by exploring
+                your experience and project
+                background.
+              </p>
+            </div>
           </div>
 
+          <div className="journey-item">
+            <div className="journey-number">
+              02
+            </div>
 
-          <div className="journey">
+            <div>
+              <h3>Detected evidence</h3>
 
-            <Journey
-              number="01"
-              title="Started broad"
-              text="The interview began by exploring your experience and project background."
-            />
-
-            <Journey
-              number="02"
-              title="Detected evidence"
-              text="The agent evaluated the evidence present in each response."
-            />
-
-            <Journey
-              number="03"
-              title="Identified gaps"
-              text="Weak or incomplete areas were identified for deeper evaluation."
-            />
-
-            <Journey
-              number="04"
-              title="Adapted questioning"
-              text="Follow-up questions were used to explore missing evidence and technical depth."
-            />
-
+              <p>
+                {agentJourney.detectedEvidence
+                  ? "The agent identified evidence from your responses and used it during evaluation."
+                  : "The agent evaluated your answers for relevant evidence."}
+              </p>
+            </div>
           </div>
 
-        </section>
+          <div className="journey-item">
+            <div className="journey-number">
+              03
+            </div>
 
+            <div>
+              <h3>Identified gaps</h3>
 
-        {/* FINAL */}
+              <p>
+                {agentJourney.identifiedGaps
+                  ? "Weak or incomplete areas were identified for deeper evaluation."
+                  : "The agent checked responses for missing evidence and gaps."}
+              </p>
+            </div>
+          </div>
 
-        <section className="report-final">
+          <div className="journey-item">
+            <div className="journey-number">
+              04
+            </div>
 
-          <p className="section-eyebrow">
-            NEXT STEP
-          </p>
+            <div>
+              <h3>Adapted questioning</h3>
+
+              <p>
+                {agentJourney.adaptedQuestioning
+                  ? "Follow-up questions were used to explore missing evidence and technical depth."
+                  : "The agent generated follow-up questions based on your responses."}
+              </p>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      {/* NEXT STEP */}
+
+      <section className="report-next-step">
+        <div>
+          <span>NEXT STEP</span>
 
           <h2>
             Ready to explore
-            <span>
-              your projects?
-            </span>
+            <br />
+            your projects?
           </h2>
 
-          <Link
-            to="/project-analysis"
-            className="report-button"
-          >
-            Analyze My Project →
-          </Link>
+          <p>
+            Analyze a GitHub repository to understand
+            your technical projects and generate
+            project-aware interview questions.
+          </p>
+        </div>
 
-        </section>
-
+        <button onClick={openProjectAnalysis}>
+          Analyze My Project →
+        </button>
       </section>
 
     </main>
   );
 }
-
-
-// --------------------------------------------------
-// SKILL COMPONENT
-// --------------------------------------------------
-
-function Skill({
-  name,
-  score,
-  width,
-  description,
-}) {
-  return (
-
-    <div className="skill-card">
-
-      <div className="skill-top">
-
-        <strong>
-          {name}
-        </strong>
-
-        <span>
-          {score}
-        </span>
-
-      </div>
-
-
-      <div className="report-bar">
-
-        <div
-          className="report-bar-fill"
-          style={{
-            width,
-          }}
-        />
-
-      </div>
-
-
-      <p>
-        {description}
-      </p>
-
-    </div>
-  );
-}
-
-
-// --------------------------------------------------
-// MINI SCORE
-// --------------------------------------------------
-
-function MiniScore({
-  label,
-  score,
-}) {
-  return (
-
-    <div
-      style={{
-        border: "1px solid #27272a",
-        padding: "10px",
-        borderRadius: "8px",
-        background: "#09090b",
-      }}
-    >
-
-      <div
-        style={{
-          color: "#52525b",
-          fontSize: "9px",
-          letterSpacing: "1px",
-        }}
-      >
-        {label}
-      </div>
-
-      <strong
-        style={{
-          display: "block",
-          marginTop: "5px",
-          fontSize: "18px",
-        }}
-      >
-        {score}
-      </strong>
-
-    </div>
-
-  );
-}
-
-
-// --------------------------------------------------
-// JOURNEY COMPONENT
-// --------------------------------------------------
-
-function Journey({
-  number,
-  title,
-  text,
-}) {
-  return (
-
-    <div className="journey-item">
-
-      <span>
-        {number}
-      </span>
-
-      <div>
-
-        <h3>
-          {title}
-        </h3>
-
-        <p>
-          {text}
-        </p>
-
-      </div>
-
-    </div>
-
-  );
-}
-
 
 export default Report;
