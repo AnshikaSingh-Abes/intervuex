@@ -420,3 +420,81 @@
   transform: translateY(-2px);
   opacity: 0.9;
 }
+
+.agent-focus {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.agent-focus span {
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  opacity: 0.5;
+}
+
+.agent-focus strong {
+  font-size: 13px;
+}
+
+.missing-evidence {
+  margin-top: 20px;
+}
+
+.evidence-row {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.evidence-row > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.evidence-row strong {
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.evidence-row small {
+  font-size: 10px;
+  opacity: 0.5;
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
+}
+
+.timeline-section {
+  margin-top: 24px;
+}
+
+.timeline-item {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.timeline-number {
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.timeline-content {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.timeline-content strong {
+  font-size: 12px;
+}
+
+.timeline-content span {
+  font-size: 11px;
+  opacity: 0.55;
+}

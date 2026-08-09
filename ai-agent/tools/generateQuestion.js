@@ -1,27 +1,67 @@
 const { generateAIResponse } = require("../services/gemini");
 
 async function generateQuestion(context) {
+  const {
+    question,
+    answer,
+    evaluation,
+    action,
+    history = [],
+    role,
+    jobDescription,
+    mode,
+  } = context;
+
   const prompt = `
-You are an expert interviewer.
+You are an expert AI interviewer conducting a professional interview.
 
-Based on the interview context below, generate the SINGLE best next interview question.
+Candidate role:
+${role || "Not specified"}
 
-Interview context:
-${JSON.stringify(context, null, 2)}
+Interview mode:
+${mode || "Mixed"}
 
-Rules:
-- Ask only ONE question.
-- The question must directly relate to the candidate's previous answer.
-- If there is missing evidence, ask specifically about that missing evidence.
-- Do not repeat information the candidate already provided.
+Job description:
+${jobDescription || "Not provided"}
+
+Previous interview history:
+${JSON.stringify(history, null, 2)}
+
+Current question:
+${question}
+
+Candidate's latest answer:
+${answer}
+
+Latest evaluation:
+${JSON.stringify(evaluation, null, 2)}
+
+Agent decision:
+${action}
+
+Your task:
+Generate the SINGLE best next interview question.
+
+Interview strategy:
+- Use the candidate's previous answers.
+- Do not repeat questions already asked.
+- If important evidence is missing, ask a focused follow-up.
+- If the answer is strong, increase difficulty or explore deeper reasoning.
+- If the answer is weak, ask a simpler clarifying question.
+- Gradually cover different relevant skills.
+- Keep the interview conversational and realistic.
+- Questions should be relevant to the target role.
 - Do not ask multiple questions at once.
-- Keep the question natural and conversational.
-- Return ONLY the question. Do not add explanations.
+
+Return ONLY the next question.
+Do not include numbering.
+Do not include explanations.
+Do not include markdown.
 `;
 
-  const question = await generateAIResponse(prompt);
+  const questionResult = await generateAIResponse(prompt);
 
-  return question.trim();
+  return questionResult.trim();
 }
 
 module.exports = generateQuestion;
