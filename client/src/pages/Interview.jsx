@@ -22,6 +22,8 @@ function Interview() {
   );
 
   const [evaluation, setEvaluation] = useState(null);
+  const [evidence, setEvidence] = useState([]);
+  const [observation, setObservation] = useState(null);
 
   // Store every question + answer + AI evaluation
   const [allResults, setAllResults] = useState([]);
@@ -95,24 +97,52 @@ function Interview() {
     try {
       setSubmitted(true);
 
+      // Get interview setup details
+      const savedSetup =
+        sessionStorage.getItem("interviewSetup");
+
+      const setup = savedSetup
+        ? JSON.parse(savedSetup)
+        : {};
+
+      // Add current answer to interview history
+      const historyForAI = [
+        ...allResults,
+        {
+          questionNumber,
+          question: currentQuestion,
+          answer: currentAnswer,
+        },
+      ];
+
+      // Send question, answer, history and setup
+      // to backend
       const result = await submitAnswer(
-  currentQuestion,
-  currentAnswer,
-  allResults
-);
+        currentQuestion,
+        currentAnswer,
+        historyForAI,
+        setup
+      );
 
       console.log("API Response:", result);
+      if (result.evidence) {
+        setEvidence(result.evidence);
+      }
+      if (result.observation) {
+        setObservation(result.observation);
+      }
 
       // Save current evaluation
       if (result.evaluation) {
         setEvaluation(result.evaluation);
 
         const questionResult = {
-          questionNumber,
-          question: currentQuestion,
-          answer: currentAnswer,
-          evaluation: result.evaluation,
-        };
+  questionNumber,
+  question: currentQuestion,
+  answer: currentAnswer,
+  evaluation: result.evaluation,
+  evidence: result.evidence || [],
+};
 
         setAllResults((previous) => {
           const updatedResults = [
@@ -139,11 +169,8 @@ function Interview() {
           setAgentDecision(
             "→ Ask for clarification"
           );
-        } else if (result.action === "MOVE_ON") {
-          setAgentDecision(
-            "→ Move to next topic"
-          );
         } else if (
+          result.action === "MOVE_ON" ||
           result.action === "NEXT_TOPIC"
         ) {
           setAgentDecision(
@@ -159,10 +186,13 @@ function Interview() {
       // Question 10 = interview finished
       if (questionNumber === 10) {
         setInterviewComplete(true);
+
         setAgentDecision(
           "→ Interview completed"
         );
+
         setAnswer("");
+
         return;
       }
 
@@ -171,23 +201,27 @@ function Interview() {
         questionNumber < 10 &&
         result.nextQuestion
       ) {
-        console.log("NEXT QUESTION RECEIVED:", result.nextQuestion);
-
-        setCurrentQuestion(result.nextQuestion);
+        setCurrentQuestion(
+          result.nextQuestion
+        );
 
         setQuestionNumber(
           (previous) => previous + 1
         );
-      } else {
-        console.log("NO NEXT QUESTION:", result);
       }
 
       setAnswer("");
+
     } catch (error) {
       console.error(
         "Error submitting answer:",
         error
       );
+
+      setAgentDecision(
+        "→ Failed to process answer"
+      );
+
     } finally {
       setSubmitted(false);
     }
@@ -381,61 +415,85 @@ function Interview() {
 
           <div className="evidence-list">
 
-            <div className="evidence-heading">
-              Detected Evidence
-            </div>
+  <div className="evidence-heading">
+    Detected Evidence
+  </div>
 
-            {evaluation?.evidence?.length > 0 ? (
+  {evidence.length > 0 ? (
 
-              evaluation.evidence.map(
-                (item, index) => (
+    evidence.map((item, index) => (
 
-                  <div
-                    className="evidence-row"
-                    key={index}
-                  >
+      <div
+        className="evidence-row"
+        key={index}
+      >
 
-                    <span className="check">
-                      ✓
-                    </span>
+        <span className="check">
+          ✓
+        </span>
 
-                    {item}
+        <div>
+          <strong>
+            {item.statement}
+          </strong>
 
-                  </div>
+          <small>
+            {item.type === "technical"
+              ? "Technical evidence"
+              : item.type === "problem-solving"
+                ? "Problem-solving evidence"
+                : "General evidence"}
+          </small>
+        </div>
 
-                )
-              )
+      </div>
 
-            ) : (
+    ))
 
-              <div className="evidence-row muted">
-                <span>○</span>
-                Evidence will appear after
-                submission
-              </div>
+  ) : (
 
-            )}
+    <div className="evidence-row muted">
 
-          </div>
+      <span>○</span>
 
+      Evidence will appear
+      after submission.
+
+    </div>
+
+  )}
+
+</div>
           <div className="agent-decision">
 
             <span>
-              AGENT DECISION
+              AI AGENT OBSERVATION
             </span>
 
             <strong>
-              {agentDecision}
+              {observation
+                ? observation.decision === "DEEPEN"
+                  ? "→ Exploring deeper"
+                  : "→ Moving to next topic"
+                : agentDecision}
             </strong>
 
             <p>
-              {evaluation?.weaknesses?.length >
-                0
-                ? evaluation.weaknesses[0]
-                : interviewComplete
-                  ? "All 10 interview questions have been completed."
-                  : "Your answer will be evaluated for reasoning, evidence, and technical depth."}
+              {observation?.missingEvidence?.length > 0
+                ? `Missing evidence: ${observation.missingEvidence[0]}`
+                : observation?.weaknesses?.length > 0
+                  ? observation.weaknesses[0]
+                  : interviewComplete
+                    ? "Interview completed."
+                    : "The AI interviewer is analyzing your response."}
             </p>
+
+            {observation?.focus && (
+              <div className="agent-focus">
+                <span>CURRENT FOCUS</span>
+                <strong>{observation.focus}</strong>
+              </div>
+            )}
 
           </div>
 
